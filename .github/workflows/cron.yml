@@ -1,0 +1,25 @@
+# Kostenlose Zeitschaltuhr für das Dashboard (statt cron-job.org):
+# ruft alle ~5 Minuten /api/cron auf — jeder Aufruf holt frische
+# Token-Daten und verschickt fällige Alerts.
+#
+# Hinweis: Der key hier ist bewusst unkritisch — er erlaubt nur, den
+# ohnehin rate-limitierten Daten-Zyklus anzustoßen (30s-Schutz in der
+# Route). Er ist KEIN Zugang zu Datenbank oder Accounts.
+# GitHub führt Schedule-Workflows manchmal einige Minuten verzögert aus.
+
+name: Worker-Takt (Ingest + Alerts)
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: /api/cron aufrufen
+        run: |
+          curl -sS --fail --max-time 55 \
+            "https://trading-peach-theta.vercel.app/api/cron?key=mc-2913206236036e90"

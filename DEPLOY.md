@@ -49,7 +49,14 @@ Die Datenbank liegt kostenlos bei Neon.
 5. Fertig ist dein Link: `https://<projektname>.vercel.app` 🎉
    (Beim Deploy werden die Datenbanktabellen automatisch angelegt.)
 
-## Schritt 3 — Zeitschaltuhr bei cron-job.org einrichten (~3 Min.)
+## Schritt 3 — Zeitschaltuhr einrichten
+
+> ✅ **Für dieses Repo schon erledigt:** Die Zeitschaltuhr läuft als GitHub Action
+> (`.github/workflows/cron.yml`) alle ~5 Minuten — ein cron-job.org-Account ist
+> **nicht** nötig. Die folgende Anleitung ist nur die Alternative, falls man einen
+> schnelleren Takt (1–2 Min.) möchte.
+
+### Alternative: cron-job.org (~3 Min.)
 
 1. [cron-job.org](https://cron-job.org) öffnen → kostenlosen Account anlegen
 2. **Cronjob anlegen** (Create cronjob):
