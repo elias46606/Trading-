@@ -1,15 +1,17 @@
 // Memecoin Screener & Alert Dashboard — Datenmodell
 //
-// Standard: SQLite (zero-config, Datei ./prisma/dev.db).
-// Für Produktion auf Postgres wechseln: provider = "postgresql" setzen,
-// DATABASE_URL anpassen und `npx prisma migrate dev` laufen lassen.
+// Standard: PostgreSQL (z.B. kostenlos bei neon.tech) — nötig fürs
+// kostenlose Hosting bei Vercel, siehe DEPLOY.md.
+// Für lokales Basteln ohne Postgres: provider = "sqlite" setzen,
+// DATABASE_URL="file:./dev.db", Ordner prisma/migrations löschen
+// und `npx prisma migrate dev --name init` laufen lassen.
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 

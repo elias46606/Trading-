@@ -1,82 +1,95 @@
-# Online stellen — komplett vom iPad aus (Railway)
+# Online stellen — komplett vom iPad aus
 
-Diese Anleitung funktioniert vollständig im Safari/Chrome-Browser, ohne PC.
-Am Ende hast du einen echten Link wie `https://memecoin-screener.up.railway.app`,
+Alles hier funktioniert vollständig im Safari/Chrome-Browser, ohne PC.
+Am Ende hast du einen echten Link wie `https://trading-xyz.vercel.app`,
 der rund um die Uhr läuft — inklusive Telegram-Alerts aufs Handy.
 
-**Kosten:** Railway Hobby-Plan ≈ 5 $/Monat (beinhaltet die Nutzung dieses Projekts).
-Es gibt eine kostenlose Testphase mit Startguthaben.
+Es gibt zwei Wege:
+
+| | Weg A — **kostenlos** | Weg B — Railway |
+|---|---|---|
+| Kosten | **0 €** | ≈ 5 $/Monat |
+| Dienste | Vercel + Neon + cron-job.org (3 Gratis-Accounts) | Railway (1 Account) |
+| Wie oft laufen Alerts? | alle 1–2 Min. (Cron-Takt) | alle ~45 Sek. (Dauerprozess) |
 
 ---
 
-## Schritt 1 — Railway-Account anlegen
+# Weg A — Kostenlos (Vercel + Neon + cron-job.org)
 
-1. Öffne [railway.com](https://railway.com) im Browser
-2. **Login with GitHub** wählen (derselbe GitHub-Account, dem dieses Repo gehört)
-3. Zugriff bestätigen
+**So funktioniert es:** Vercel hostet die App gratis, hat aber keine Dauerprozesse.
+Deshalb ruft der Gratis-Dienst cron-job.org alle 1–2 Minuten die eingebaute Route
+`/api/cron` auf — jeder Aufruf holt frische Daten und verschickt fällige Alerts.
+Die Datenbank liegt kostenlos bei Neon.
 
-## Schritt 2 — Projekt aus GitHub deployen
+## Schritt 1 — Datenbank bei Neon anlegen (~3 Min.)
 
-1. **New Project** → **Deploy from GitHub repo**
-2. Falls gefragt: GitHub-Zugriff für das Repo **Trading-** freigeben
-3. Repo **elias46606/Trading-** auswählen → **Deploy Now**
+1. [neon.tech](https://neon.tech) öffnen → **Sign up** → mit GitHub einloggen
+2. Neues Projekt anlegen (Name egal, Region z. B. Frankfurt/EU)
+3. Auf dem Dashboard den **Connection String** kopieren — er sieht so aus:
+   `postgresql://user:passwort@ep-xxx.eu-central-1.aws.neon.tech/neondb?sslmode=require`
+4. Irgendwo zwischenspeichern (Notizen-App) — den brauchst du gleich
 
-Railway erkennt Next.js automatisch und baut die App (dauert ein paar Minuten).
+## Schritt 2 — App bei Vercel deployen (~5 Min.)
 
-## Schritt 3 — Volume für die Datenbank anlegen
+1. [vercel.com](https://vercel.com) öffnen → **Sign up** → **Continue with GitHub**
+   (Hobby-Plan wählen — der ist kostenlos)
+2. **Add New… → Project** → dein Repo **Trading-** importieren
+   (falls gefragt: GitHub-Zugriff für das Repo freigeben)
+3. Vor dem Deploy: **Environment Variables** aufklappen und eintragen:
 
-Damit die SQLite-Datenbank Neustarts überlebt:
+   | Name | Wert |
+   |---|---|
+   | `DATABASE_URL` | dein Neon-Connection-String aus Schritt 1 |
+   | `CRON_SECRET` | ein selbst ausgedachtes Passwort, z. B. `blauerElefant42` |
+   | `TELEGRAM_BOT_TOKEN` | *(optional — Token von @BotFather)* |
+   | `TELEGRAM_CHAT_ID` | *(optional — deine Chat-ID)* |
+   | `ANTHROPIC_API_KEY` | *(optional — für den KI-Copilot)* |
 
-1. Im Projekt: Rechtsklick/Long-Press auf den Service → **Attach Volume**
-   (oder Service öffnen → **Settings** → **Volumes**)
-2. Mount Path: `/data`
+4. **Deploy** antippen und ~2 Minuten warten
+5. Fertig ist dein Link: `https://<projektname>.vercel.app` 🎉
+   (Beim Deploy werden die Datenbanktabellen automatisch angelegt.)
 
-## Schritt 4 — Umgebungsvariablen setzen
+## Schritt 3 — Zeitschaltuhr bei cron-job.org einrichten (~3 Min.)
 
-Service öffnen → Tab **Variables** → folgende Einträge anlegen:
-
-| Variable | Wert |
-|---|---|
-| `DATABASE_URL` | `file:/data/prod.db` |
-| `EMBEDDED_WORKER` | `true` |
-| `TELEGRAM_BOT_TOKEN` | *(optional — dein Token von @BotFather)* |
-| `TELEGRAM_CHAT_ID` | *(optional — deine Chat-ID)* |
-| `ANTHROPIC_API_KEY` | *(optional — für den KI-Copilot)* |
-
-`EMBEDDED_WORKER=true` startet den Daten-Worker direkt im Webserver mit —
-du brauchst also nur diesen einen Service.
-
-Nach dem Speichern deployt Railway automatisch neu.
-
-## Schritt 5 — Öffentlichen Link erzeugen
-
-1. Service öffnen → **Settings** → **Networking**
-2. **Generate Domain** antippen
-3. Fertig — der Link (z. B. `https://trading-production-xxxx.up.railway.app`)
-   funktioniert auf iPad, Handy und überall sonst. Du kannst ihn dir in
-   Safari auch als App-Icon auf den Homescreen legen
-   (Teilen-Symbol → „Zum Home-Bildschirm").
+1. [cron-job.org](https://cron-job.org) öffnen → kostenlosen Account anlegen
+2. **Cronjob anlegen** (Create cronjob):
+   - **URL:** `https://<projektname>.vercel.app/api/cron?key=blauerElefant42`
+     *(dein Vercel-Link + dein CRON_SECRET aus Schritt 2)*
+   - **Ausführung:** alle **2 Minuten** (oder jede Minute)
+3. Speichern. In der Historie des Cronjobs sollte nach kurzer Zeit
+   **Status 200** mit einer Antwort wie `{"ingest":"ok","dispatch":"ok"}` stehen
 
 ## Prüfen, ob alles läuft
 
-- Öffne `<dein-link>/api/status` — dort sollte `"tokenCount"` nach 1–2 Minuten
-  größer als 0 sein und `lastIngestAt` ein aktuelles Datum zeigen
-- Im Dashboard oben muss **„● Worker aktiv"** grün leuchten
+- `https://<projektname>.vercel.app/api/status` öffnen — `tokenCount` > 0
+  und `lastIngestAt` aktuell?
+- Im Dashboard muss **„● Worker aktiv"** grün leuchten
+- Den Link per Teilen-Symbol → **„Zum Home-Bildschirm"** als App-Icon aufs iPad legen
 
-## Häufige Probleme
+## Häufige Probleme (Weg A)
 
 | Problem | Lösung |
 |---|---|
-| „Worker inaktiv" im Dashboard | `EMBEDDED_WORKER=true` gesetzt? (Variables prüfen, neu deployen) |
-| Fehler „no such table" | `DATABASE_URL` prüfen — muss exakt `file:/data/prod.db` sein, und das Volume muss auf `/data` gemountet sein |
-| Daten weg nach Neustart | Volume fehlt (Schritt 3) |
-| Keine Telegram-Nachrichten | Token/Chat-ID prüfen; dem Bot vorher 1× schreiben; Alerts erscheinen trotzdem immer in der App unter „Alerts" |
+| Build schlägt fehl mit DB-Fehler | `DATABASE_URL` in Vercel prüfen (kompletter Neon-String inkl. `?sslmode=require`) |
+| Cronjob zeigt Status 401 | `key=` in der Cron-URL muss exakt dem `CRON_SECRET` in Vercel entsprechen |
+| „Worker inaktiv" im Dashboard | Läuft der Cronjob? (Historie bei cron-job.org prüfen) |
+| Keine Telegram-Nachrichten | Token/Chat-ID prüfen; dem Bot vorher 1× schreiben; Alerts erscheinen trotzdem in der App unter „Alerts" |
+
+**Hinweise:** Der Vercel-Hobby-Plan ist für private, nicht-kommerzielle Nutzung
+gedacht — genau unser Fall. Neon gratis bis 0,5 GB (reicht hier locker, alte
+Snapshots werden automatisch nach 72 h gelöscht).
 
 ---
 
-## Alternative: Render.com
+# Weg B — Railway (~5 $/Monat, dafür Dauerprozess)
 
-Geht auch, aber: Im kostenlosen Tarif schläft die App nach 15 Minuten ein —
-dann laufen **keine Alerts** mehr, bis jemand die Seite öffnet. Für ein
-Alert-Tool ist das unbrauchbar; der dauerhaft laufende Tarif kostet dort
-ähnlich viel wie Railway. Deshalb ist Railway hier die bessere Wahl.
+1. [railway.com](https://railway.com) → **Login with GitHub**
+2. **New Project → Deploy from GitHub repo** → **Trading-** wählen
+3. Im Projekt: **Create → Database → Add PostgreSQL**
+4. Beim App-Service unter **Variables** eintragen:
+   - `DATABASE_URL` → Reference auf `${{Postgres.DATABASE_URL}}`
+   - `EMBEDDED_WORKER` → `true` *(startet den Dauer-Worker im Webserver mit)*
+   - optional `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `ANTHROPIC_API_KEY`
+5. **Settings → Networking → Generate Domain** → das ist dein Link
+
+Ein Cron-Dienst ist bei Weg B nicht nötig — der Worker läuft permanent mit.

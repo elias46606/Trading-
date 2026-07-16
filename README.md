@@ -17,12 +17,16 @@ Discovery-, Screening- und Risk-System für **Solana**-Memecoins mit Push-Alerts
 
 ## Schnellstart
 
-Voraussetzung: Node.js 20+
+> **Kein PC zur Hand (iPad/Handy)?** Siehe **[DEPLOY.md](DEPLOY.md)** — Schritt-für-Schritt-Anleitung,
+> um das Dashboard **kostenlos** und komplett im Browser online zu stellen
+> (Vercel + Neon + cron-job.org → eigener Link, läuft 24/7).
+
+Lokal (Voraussetzung: Node.js 20+ und eine Postgres-URL, kostenlos z. B. von [neon.tech](https://neon.tech)):
 
 ```bash
 npm install
-cp .env.example .env        # Defaults reichen für den Start
-npx prisma migrate dev      # legt die SQLite-DB an
+cp .env.example .env        # DATABASE_URL eintragen
+npx prisma migrate dev      # legt die Tabellen an
 
 # Terminal 1 — Backend-Worker (Ingest + Alert-Dispatcher)
 npm run worker
@@ -32,9 +36,7 @@ npm run dev                 # http://localhost:3000
 ```
 
 Nach ~1 Minute füllt der Worker die DB mit den ersten Tokens.
-
-> **Kein PC zur Hand (iPad/Handy)?** Siehe **[DEPLOY.md](DEPLOY.md)** — Schritt-für-Schritt-Anleitung,
-> um das Dashboard komplett im Browser bei Railway online zu stellen (eigener Link, läuft 24/7).
+Ganz ohne Postgres basteln? SQLite-Umstellung: siehe Kommentar in `prisma/schema.prisma`.
 
 ## Telegram-Alerts einrichten (optional)
 
@@ -67,6 +69,11 @@ Drei getrennte Prozesse (Konzept-Kapitel 2):
 | **Alert-Dispatcher** | prüft alle ~45 Sek. Regeln + Watchlist, verschickt Treffer, dedupliziert | läuft im selben Prozess mit |
 | **Web-App** | liest **nur** aus der DB, nie direkt aus den APIs (schont Rate-Limits) | `npm run dev` |
 
+Für das Hosting gibt es zwei weitere Betriebsmodi:
+- `EMBEDDED_WORKER=true` — Worker läuft im Webserver mit (ein einziger Dienst, z. B. Railway)
+- `GET /api/cron?key=<CRON_SECRET>` — ein externer Cron-Dienst stößt Ingest + Dispatch an
+  (serverlos, fürs kostenlose Vercel-Hosting; Route ist per `CRON_SECRET` geschützt)
+
 ### Wichtige Dateien
 
 ```
@@ -78,11 +85,12 @@ src/lib/screening.ts        Filter-Logik (von App UND Dispatcher genutzt)
 src/app/api/copilot/        KI-Copilot mit Grounding + Anti-Predictor-System-Prompt
 ```
 
-## Von SQLite auf Postgres wechseln (für Produktion)
+## Datenbank
 
-1. In `prisma/schema.prisma`: `provider = "postgresql"` setzen
-2. In `.env`: `DATABASE_URL="postgresql://user:pass@host:5432/memecoin"`
-3. `npx prisma migrate dev --name postgres-init`
+Standard ist **PostgreSQL** (kostenlos z. B. bei [neon.tech](https://neon.tech)) — das braucht
+auch das kostenlose Vercel-Hosting. Wer lokal ohne Postgres basteln will, stellt auf SQLite um:
+`provider = "sqlite"` in `prisma/schema.prisma`, `DATABASE_URL="file:./dev.db"` in `.env`,
+Ordner `prisma/migrations` löschen, dann `npx prisma migrate dev --name init`.
 
 ## Hinweise
 
