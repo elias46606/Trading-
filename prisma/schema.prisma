@@ -1,0 +1,140 @@
+// Memecoin Screener & Alert Dashboard — Datenmodell
+//
+// Standard: SQLite (zero-config, Datei ./prisma/dev.db).
+// Für Produktion auf Postgres wechseln: provider = "postgresql" setzen,
+// DATABASE_URL anpassen und `npx prisma migrate dev` laufen lassen.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Token {
+  id            Int       @id @default(autoincrement())
+  address       String    @unique
+  chain         String    @default("solana")
+  symbol        String
+  name          String?
+  imageUrl      String?
+  // JSON-Array von Strings, z.B. ["MINT_AUTHORITY","FREEZE_AUTHORITY"]
+  contractFlags String    @default("[]")
+  firstSeenAt   DateTime  @default(now())
+
+  pairs        Pair[]
+  safetyScore  SafetyScore?
+  watchlist    WatchlistEntry?
+  alertsSent   AlertSent[]
+
+  @@map("tokens")
+}
+
+model Pair {
+  id             Int       @id @default(autoincrement())
+  pairAddress    String    @unique
+  dexId          String?
+  url            String?
+  tokenId        Int
+  token          Token     @relation(fields: [tokenId], references: [id], onDelete: Cascade)
+
+  priceUsd       Float?
+  liquidityUsd   Float?
+  volume24h      Float?
+  volume1h       Float?
+  mcap           Float?
+  fdv            Float?
+  priceChange5m  Float?
+  priceChange1h  Float?
+  priceChange24h Float?
+  buys24h        Int?
+  sells24h       Int?
+  buys1h         Int?
+  sells1h        Int?
+  pairCreatedAt  DateTime?
+  updatedAt      DateTime  @updatedAt
+
+  snapshots PairSnapshot[]
+
+  @@index([liquidityUsd])
+  @@index([updatedAt])
+  @@map("pairs")
+}
+
+// Zeitreihe für Rug-Frühwarnung (Liquiditäts-Drop, Volumen-Spike)
+model PairSnapshot {
+  id           Int      @id @default(autoincrement())
+  pairId       Int
+  pair         Pair     @relation(fields: [pairId], references: [id], onDelete: Cascade)
+  priceUsd     Float?
+  liquidityUsd Float?
+  volume24h    Float?
+  takenAt      DateTime @default(now())
+
+  @@index([pairId, takenAt])
+  @@map("pair_snapshots")
+}
+
+model SafetyScore {
+  id        Int      @id @default(autoincrement())
+  tokenId   Int      @unique
+  token     Token    @relation(fields: [tokenId], references: [id], onDelete: Cascade)
+  // 0–100, höher = sicherer wirkend (KEINE Garantie!)
+  score     Int
+  // GREEN | YELLOW | RED
+  ampel     String
+  // JSON-Array von { code, level: "danger"|"warn"|"info", message }
+  flags     String   @default("[]")
+  // "heuristic" (nur DexScreener-Daten) oder "rugcheck" (angereichert)
+  source    String   @default("heuristic")
+  // Roh-Score von RugCheck (höher = riskanter), falls vorhanden
+  rugcheckScore Float?
+  checkedAt DateTime @default(now())
+
+  @@map("safety_scores")
+}
+
+model AlertRule {
+  id         Int      @id @default(autoincrement())
+  userId     String   @default("default")
+  name       String
+  // JSON: { minLiquidityUsd, minVolMcapRatio, maxPoolAgeHours, minBuys24h, requireGreen }
+  filterJson String
+  // Erneuter Alert für denselben Token+Regel frühestens nach X Minuten
+  cooldownMinutes Int  @default(360)
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+
+  alertsSent AlertSent[]
+
+  @@map("alert_rules")
+}
+
+model AlertSent {
+  id        Int       @id @default(autoincrement())
+  ruleId    Int?
+  rule      AlertRule? @relation(fields: [ruleId], references: [id], onDelete: SetNull)
+  tokenId   Int
+  token     Token     @relation(fields: [tokenId], references: [id], onDelete: Cascade)
+  // SCREENER_MATCH | LIQUIDITY_DROP | VOLUME_SPIKE
+  kind      String
+  message   String
+  deliveredTelegram Boolean @default(false)
+  sentAt    DateTime  @default(now())
+
+  @@index([tokenId, kind, sentAt])
+  @@map("alerts_sent")
+}
+
+model WatchlistEntry {
+  id      Int      @id @default(autoincrement())
+  userId  String   @default("default")
+  tokenId Int      @unique
+  token   Token    @relation(fields: [tokenId], references: [id], onDelete: Cascade)
+  note    String?
+  addedAt DateTime @default(now())
+
+  @@map("watchlist")
+}
