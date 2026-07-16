@@ -33,6 +33,9 @@ npm run dev                 # http://localhost:3000
 
 Nach ~1 Minute füllt der Worker die DB mit den ersten Tokens.
 
+> **Kein PC zur Hand (iPad/Handy)?** Siehe **[DEPLOY.md](DEPLOY.md)** — Schritt-für-Schritt-Anleitung,
+> um das Dashboard komplett im Browser bei Railway online zu stellen (eigener Link, läuft 24/7).
+
 ## Telegram-Alerts einrichten (optional)
 
 1. In Telegram [@BotFather](https://t.me/BotFather) öffnen → `/newbot` → Token kopieren
