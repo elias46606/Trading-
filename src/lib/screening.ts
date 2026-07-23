@@ -50,6 +50,7 @@ export function toMetrics(t: TokenWithRelations): TokenMetrics {
     safetyFlags: parseFlags(t.safetyScore?.flags),
     rugcheckScore: t.safetyScore?.rugcheckScore ?? null,
     dexUrl: pair?.url ?? null,
+    pairAddress: pair?.pairAddress ?? null,
     watchlisted: t.watchlist !== null,
     firstSeenAt: t.firstSeenAt?.toISOString() ?? null,
   };

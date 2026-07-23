@@ -29,24 +29,19 @@ export function StatusRibbon() {
   if (!status) return null;
 
   const last = status.lastIngestAt ? new Date(status.lastIngestAt) : null;
+  // GitHub-Actions-Takt läuft real alle ~5–15 Min. — erst danach ist es "stale".
   const staleMinutes = last ? (Date.now() - last.getTime()) / 60_000 : Infinity;
-  const workerOk = staleMinutes < 5;
+  const workerOk = staleMinutes < 20;
 
   return (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted">
-      <span className={workerOk ? "text-ampel-green" : "text-ampel-red"}>
-        ● Worker {workerOk ? "aktiv" : "inaktiv — `npm run worker` starten"}
+    <div
+      className="flex items-center gap-x-3 text-xs text-muted"
+      title={`${status.tokenCount} Tokens erfasst${last ? ` · letzte Aktualisierung ${last.toLocaleTimeString("de-DE")}` : ""}${status.telegramConfigured ? " · Telegram verbunden" : " · Alerts nur in-App"}`}
+    >
+      <span className={workerOk ? "text-ampel-green" : "text-ampel-yellow"}>
+        ● {workerOk ? "Live" : "Aktualisierung folgt"}
       </span>
-      <span>{status.tokenCount} Tokens in der DB</span>
-      <span>
-        Telegram:{" "}
-        {status.telegramConfigured ? (
-          <span className="text-ampel-green">verbunden</span>
-        ) : (
-          "nicht konfiguriert (Alerts nur in-App)"
-        )}
-      </span>
-      {last && <span>Letzter Ingest: {last.toLocaleTimeString("de-DE")}</span>}
+      <span>{status.tokenCount.toLocaleString("de-DE")} Coins erfasst</span>
     </div>
   );
 }

@@ -51,6 +51,7 @@ export interface TokenMetrics {
   safetyFlags: SafetyFlag[];
   rugcheckScore: number | null;
   dexUrl: string | null;
+  pairAddress: string | null;
   watchlisted: boolean;
   firstSeenAt: string | null;
 }

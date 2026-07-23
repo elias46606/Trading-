@@ -82,6 +82,21 @@ export default async function TokenDetailPage({
         />
       </div>
 
+      {metrics.pairAddress && (
+        <section className="rounded-xl border border-line bg-surface overflow-hidden">
+          <div className="px-4 py-3 border-b border-line flex items-baseline justify-between">
+            <h2 className="font-semibold">Chart & Trade-Verlauf</h2>
+            <span className="text-xs text-muted">Live von DexScreener</span>
+          </div>
+          <iframe
+            src={`https://dexscreener.com/solana/${metrics.pairAddress}?embed=1&theme=dark&info=0`}
+            className="w-full h-[640px] border-0"
+            loading="lazy"
+            title={`Chart und Trades für ${metrics.symbol}`}
+          />
+        </section>
+      )}
+
       <section className="rounded-xl border border-line bg-surface p-4">
         <h2 className="font-semibold mb-3">
           Risk-Befunde{" "}
