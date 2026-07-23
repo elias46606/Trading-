@@ -6,6 +6,7 @@ import { fmtAge, fmtDateTime, fmtPct, fmtRatioAsPct, fmtUsd } from "@/lib/format
 import { AmpelBadge } from "@/components/AmpelBadge";
 import { WatchButton } from "@/components/WatchButton";
 import { CopilotPanel } from "@/components/CopilotPanel";
+import { CopyButton } from "@/components/CopyButton";
 
 export const dynamic = "force-dynamic";
 
@@ -61,7 +62,10 @@ export default async function TokenDetailPage({
           </a>
         </div>
       </div>
-      <p className="text-xs text-muted font-mono break-all -mt-4">{metrics.address}</p>
+      <div className="flex flex-wrap items-center gap-3 -mt-4">
+        <p className="text-xs text-muted font-mono break-all">{metrics.address}</p>
+        <CopyButton value={metrics.address} />
+      </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         <Metric label="Preis" value={fmtUsd(metrics.priceUsd)} />

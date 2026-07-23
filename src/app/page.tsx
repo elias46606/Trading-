@@ -16,17 +16,19 @@ export default async function ScreenerPage({
 }) {
   const params = await searchParams;
   const view = params.view === "screener" ? "screener" : "new";
+  const showAll = params.fomoOnly === "false";
 
   const filter = { ...DEFAULT_FILTER, ...parseFilterFromParams(params) };
   const query = new URLSearchParams(
     view === "new"
-      ? { view: "new" }
+      ? { view: "new", fomoOnly: String(!showAll) }
       : {
           minLiquidityUsd: String(filter.minLiquidityUsd),
           minVolMcapRatio: String(filter.minVolMcapRatio),
           maxPoolAgeHours: String(filter.maxPoolAgeHours),
           minBuys24h: String(filter.minBuys24h),
           requireGreen: String(filter.requireGreen),
+          fomoOnly: String(filter.fomoOnly),
         },
   );
 
@@ -38,9 +40,20 @@ export default async function ScreenerPage({
             {view === "new" ? "Neueste Coins" : "Screener"}
           </h1>
           <p className="text-sm text-muted mt-1">
-            {view === "new"
-              ? "Frisch gelistete Solana-Coins der letzten 24 Stunden — neueste zuerst. Vorsicht: ganz neue Pools sind am riskantesten."
-              : "Aktive Solana-Tokens, die deine Filter erfüllen — sortiert nach 24h-Volumen."}
+            {view === "new" ? (
+              <>
+                Frisch gelistete Coins der letzten 24h, die du direkt in <b>Fomo</b> handeln
+                kannst — neueste zuerst.{" "}
+                <Link
+                  href={showAll ? "/" : "/?fomoOnly=false"}
+                  className="text-accent hover:underline"
+                >
+                  {showAll ? "nur handelbare zeigen" : "alle zeigen"}
+                </Link>
+              </>
+            ) : (
+              "Aktive Solana-Tokens, die deine Filter erfüllen — sortiert nach 24h-Volumen."
+            )}
           </p>
         </div>
         <StatusRibbon />

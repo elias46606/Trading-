@@ -20,6 +20,8 @@ export interface ScreenerFilter {
   /** Proxy für "Min. Unique Buyers": DexScreener liefert Käufe, keine Unique Wallets */
   minBuys24h: number;
   requireGreen: boolean;
+  /** Nur Coins, die in Consumer-Apps wie Fomo direkt handelbar sind */
+  fomoOnly: boolean;
 }
 
 export const DEFAULT_FILTER: ScreenerFilter = {
@@ -28,6 +30,7 @@ export const DEFAULT_FILTER: ScreenerFilter = {
   maxPoolAgeHours: 0,
   minBuys24h: 0,
   requireGreen: false,
+  fomoOnly: true,
 };
 
 // Metriken eines Tokens, wie sie Scoring, Dispatcher und KI-Copilot nutzen.
@@ -43,6 +46,8 @@ export interface TokenMetrics {
   poolAgeHours: number | null;
   buys24h: number | null;
   sells24h: number | null;
+  buys1h: number | null;
+  dexId: string | null;
   priceChange1h: number | null;
   priceChange24h: number | null;
   contractFlags: string[];

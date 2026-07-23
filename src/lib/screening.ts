@@ -42,6 +42,8 @@ export function toMetrics(t: TokenWithRelations): TokenMetrics {
     poolAgeHours,
     buys24h: pair?.buys24h ?? null,
     sells24h: pair?.sells24h ?? null,
+    buys1h: pair?.buys1h ?? null,
+    dexId: pair?.dexId ?? null,
     priceChange1h: pair?.priceChange1h ?? null,
     priceChange24h: pair?.priceChange24h ?? null,
     contractFlags: parseJsonArray(t.contractFlags),
@@ -68,7 +70,26 @@ export function matchesFilter(m: TokenMetrics, f: ScreenerFilter): boolean {
   if (f.maxPoolAgeHours > 0 && (m.poolAgeHours ?? Infinity) > f.maxPoolAgeHours) return false;
   if (f.minBuys24h > 0 && (m.buys24h ?? 0) < f.minBuys24h) return false;
   if (f.requireGreen && m.ampel !== "GREEN") return false;
+  if (f.fomoOnly && !isFomoTradeable(m)) return false;
   return true;
+}
+
+/**
+ * "In Fomo handelbar": Fomo (fomo.family) handelt Solana-Coins ab Pump.fun-
+ * Launch sowie alles mit echtem DEX-Pool. Praktisch heißt das:
+ *   - Pump.fun Bonding Curve → handelbar, solange dort noch was passiert
+ *     (Aktivität in der letzten Stunde oder ganz frisch)
+ *   - sonst: echter AMM-Pool mit Rest-Liquidität (> $1.000), damit ein
+ *     Kauf/Verkauf real durchgeht
+ * Tote oder leergezogene Coins fliegen raus.
+ */
+export function isFomoTradeable(m: TokenMetrics): boolean {
+  if (m.priceUsd === null) return false;
+  if (m.dexId === "pumpfun") {
+    const brandNew = m.poolAgeHours !== null && m.poolAgeHours < 2;
+    return brandNew || (m.buys1h ?? 0) > 0;
+  }
+  return (m.liquidityUsd ?? 0) >= 1_000;
 }
 
 /**
@@ -127,5 +148,6 @@ export function parseFilterFromParams(params: Record<string, string | undefined>
   if (params.maxPoolAgeHours !== undefined) f.maxPoolAgeHours = Number(params.maxPoolAgeHours) || 0;
   if (params.minBuys24h !== undefined) f.minBuys24h = Number(params.minBuys24h) || 0;
   if (params.requireGreen !== undefined) f.requireGreen = params.requireGreen === "true";
+  if (params.fomoOnly !== undefined) f.fomoOnly = params.fomoOnly === "true";
   return f;
 }
