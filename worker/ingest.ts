@@ -16,7 +16,7 @@ import { fetchRugcheckSummary } from "./rugcheck";
 const CHAIN = "solana";
 // Teure RugCheck-Calls nur für Tokens, die das Basis-Screening grob bestehen.
 const RUGCHECK_MIN_LIQUIDITY = 10_000;
-const RUGCHECK_MAX_PER_CYCLE = 12;
+const RUGCHECK_MAX_PER_CYCLE = 15;
 const RUGCHECK_TTL_MINUTES = 30;
 // Bestehende Tokens werden nur aufgefrischt, solange sie kürzlich aktiv waren.
 const REFRESH_WINDOW_HOURS = 48;
@@ -169,6 +169,7 @@ async function upsertToken(address: string, tokenPairs: DexPair[], icon?: string
     sells24h: best.txns?.h24?.sells ?? null,
     priceChange24h: best.priceChange?.h24 ?? null,
     poolAgeHours: best.pairCreatedAt ? (Date.now() - best.pairCreatedAt) / 3_600_000 : null,
+    dexId: best.dexId ?? null,
   });
 
   // Einen frischeren RugCheck-Befund nicht mit reiner Heuristik überschreiben —
@@ -201,15 +202,25 @@ async function upsertToken(address: string, tokenPairs: DexPair[], icon?: string
 
 async function enrichWithRugcheck(): Promise<number> {
   const cutoff = new Date(Date.now() - RUGCHECK_TTL_MINUTES * 60_000);
+  // Scam-Schutz: geprüft wird, was relevant ist — Coins mit echter
+  // Liquidität UND alle frischen Coins (< 24h), auch ohne Pool.
+  // Neueste zuerst, damit gerade gelaunchte Coins schnell einen
+  // RugCheck-Befund bekommen.
+  const freshCutoff = new Date(Date.now() - 24 * 3_600_000);
   const candidates = await prisma.token.findMany({
     where: {
       chain: CHAIN,
-      pairs: { some: { liquidityUsd: { gte: RUGCHECK_MIN_LIQUIDITY } } },
       OR: [
-        { safetyScore: { is: { source: "heuristic" } } },
-        { safetyScore: { is: { checkedAt: { lt: cutoff } } } },
-        { safetyScore: null },
+        { pairs: { some: { liquidityUsd: { gte: RUGCHECK_MIN_LIQUIDITY } } } },
+        { firstSeenAt: { gte: freshCutoff } },
       ],
+      AND: {
+        OR: [
+          { safetyScore: { is: { source: "heuristic" } } },
+          { safetyScore: { is: { checkedAt: { lt: cutoff } } } },
+          { safetyScore: null },
+        ],
+      },
     },
     include: { pairs: { orderBy: { liquidityUsd: "desc" }, take: 1 } },
     orderBy: { firstSeenAt: "desc" },
@@ -232,6 +243,7 @@ async function enrichWithRugcheck(): Promise<number> {
       poolAgeHours: pair?.pairCreatedAt
         ? (Date.now() - pair.pairCreatedAt.getTime()) / 3_600_000
         : null,
+      dexId: pair?.dexId ?? null,
     });
     const merged = mergeRugcheck(heuristic, {
       scoreNormalised: summary.score_normalised,

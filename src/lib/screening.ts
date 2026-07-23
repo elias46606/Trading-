@@ -71,6 +71,9 @@ export function matchesFilter(m: TokenMetrics, f: ScreenerFilter): boolean {
   if (f.minBuys24h > 0 && (m.buys24h ?? 0) < f.minBuys24h) return false;
   if (f.requireGreen && m.ampel !== "GREEN") return false;
   if (f.fomoOnly && !isFomoTradeable(m)) return false;
+  // Scam-Filter: rote Ampel raus (Honeypot-Muster, Rug-Signale von
+  // RugCheck, leergezogene Liquidität, Crash > 80 %).
+  if (f.hideRed && m.ampel === "RED") return false;
   return true;
 }
 
@@ -149,5 +152,6 @@ export function parseFilterFromParams(params: Record<string, string | undefined>
   if (params.minBuys24h !== undefined) f.minBuys24h = Number(params.minBuys24h) || 0;
   if (params.requireGreen !== undefined) f.requireGreen = params.requireGreen === "true";
   if (params.fomoOnly !== undefined) f.fomoOnly = params.fomoOnly === "true";
+  if (params.hideRed !== undefined) f.hideRed = params.hideRed === "true";
   return f;
 }

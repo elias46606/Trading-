@@ -22,6 +22,8 @@ export interface ScreenerFilter {
   requireGreen: boolean;
   /** Nur Coins, die in Consumer-Apps wie Fomo direkt handelbar sind */
   fomoOnly: boolean;
+  /** Scam-Filter: Coins mit roter Safety-Ampel ausblenden */
+  hideRed: boolean;
 }
 
 export const DEFAULT_FILTER: ScreenerFilter = {
@@ -31,6 +33,7 @@ export const DEFAULT_FILTER: ScreenerFilter = {
   minBuys24h: 0,
   requireGreen: false,
   fomoOnly: true,
+  hideRed: true,
 };
 
 // Metriken eines Tokens, wie sie Scoring, Dispatcher und KI-Copilot nutzen.

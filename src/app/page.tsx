@@ -21,7 +21,7 @@ export default async function ScreenerPage({
   const filter = { ...DEFAULT_FILTER, ...parseFilterFromParams(params) };
   const query = new URLSearchParams(
     view === "new"
-      ? { view: "new", fomoOnly: String(!showAll) }
+      ? { view: "new", fomoOnly: String(!showAll), hideRed: String(!showAll) }
       : {
           minLiquidityUsd: String(filter.minLiquidityUsd),
           minVolMcapRatio: String(filter.minVolMcapRatio),
@@ -29,6 +29,7 @@ export default async function ScreenerPage({
           minBuys24h: String(filter.minBuys24h),
           requireGreen: String(filter.requireGreen),
           fomoOnly: String(filter.fomoOnly),
+          hideRed: String(filter.hideRed),
         },
   );
 
@@ -42,17 +43,17 @@ export default async function ScreenerPage({
           <p className="text-sm text-muted mt-1">
             {view === "new" ? (
               <>
-                Frisch gelistete Coins der letzten 24h, die du direkt in <b>Fomo</b> handeln
-                kannst — neueste zuerst.{" "}
+                Frisch gelistete Coins der letzten 24h, handelbar in <b>Fomo</b> —
+                Scam-Verdacht (rote Ampel) automatisch rausgefiltert.{" "}
                 <Link
                   href={showAll ? "/" : "/?fomoOnly=false"}
                   className="text-accent hover:underline"
                 >
-                  {showAll ? "nur handelbare zeigen" : "alle zeigen"}
+                  {showAll ? "wieder filtern" : "alle zeigen (ungefiltert)"}
                 </Link>
               </>
             ) : (
-              "Aktive Solana-Tokens, die deine Filter erfüllen — sortiert nach 24h-Volumen."
+              "Aktive Solana-Tokens, die deine Filter erfüllen — ohne rote Ampel, sortiert nach 24h-Volumen."
             )}
           </p>
         </div>

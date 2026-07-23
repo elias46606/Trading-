@@ -18,6 +18,8 @@ export interface ScoringInput {
   sells24h: number | null;
   priceChange24h: number | null;
   poolAgeHours: number | null;
+  /** DexScreener dexId — "pumpfun" = Bonding Curve (noch kein AMM-Pool) */
+  dexId?: string | null;
 }
 
 export interface RugcheckInput {
@@ -37,8 +39,19 @@ export function scoreFromDexData(input: ScoringInput): ScoringResult {
   let deduction = 0;
   let forceRed = false;
 
+  const onBondingCurve = input.dexId === "pumpfun";
   const liq = input.liquidityUsd ?? 0;
-  if (liq < 1_000) {
+  if (onBondingCurve) {
+    // Bonding Curve: fehlende AMM-Liquidität ist hier normal, kein
+    // Scam-Signal. Dafür ist die Phase per se hochriskant → Deckel drauf.
+    flags.push({
+      code: "BONDING_CURVE",
+      level: "warn",
+      message:
+        "Sehr frühe Phase (Pump.fun Bonding Curve, noch kein echter Pool) — die meisten Coins überleben diese Phase nicht",
+    });
+    deduction += 25;
+  } else if (liq < 1_000) {
     flags.push({
       code: "LIQ_CRITICAL",
       level: "danger",
