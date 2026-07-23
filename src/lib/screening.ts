@@ -7,7 +7,7 @@ import { DEFAULT_FILTER } from "./types";
 
 type TokenWithRelations = Awaited<ReturnType<typeof queryTokens>>[number];
 
-async function queryTokens(where: object, take: number) {
+async function queryTokens(where: object, take: number, newestFirst = false) {
   return prisma.token.findMany({
     where,
     include: {
@@ -15,6 +15,7 @@ async function queryTokens(where: object, take: number) {
       safetyScore: true,
       watchlist: true,
     },
+    ...(newestFirst ? { orderBy: { firstSeenAt: "desc" as const } } : {}),
     take,
   });
 }
@@ -69,20 +70,33 @@ export function matchesFilter(m: TokenMetrics, f: ScreenerFilter): boolean {
   return true;
 }
 
-/** Alle Tokens laden (neueste zuerst), Filter in JS anwenden. */
-export async function screenTokens(filter: Partial<ScreenerFilter>, limit = 100): Promise<TokenMetrics[]> {
+/**
+ * Tokens laden und filtern. sort="volume": aktivste zuerst (Screener).
+ * sort="newest": frischeste Pools zuerst (Discovery) — hier zählt auch,
+ * was noch gar keine messbare Liquidität hat (z.B. Pump.fun Bonding Curve).
+ */
+export async function screenTokens(
+  filter: Partial<ScreenerFilter>,
+  limit = 100,
+  sort: "volume" | "newest" = "volume",
+): Promise<TokenMetrics[]> {
   const f: ScreenerFilter = { ...DEFAULT_FILTER, ...filter };
   // Grob-Vorfilter in SQL (Liquidität), Feinfilter in JS —
   // bei den Datenmengen eines Einzelnutzer-Screeners völlig ausreichend.
-  const tokens = await queryTokens(
-    { pairs: { some: { liquidityUsd: { gte: f.minLiquidityUsd } } } },
-    500,
-  );
-  return tokens
-    .map(toMetrics)
-    .filter((m) => matchesFilter(m, f))
-    .sort((a, b) => (b.volume24h ?? 0) - (a.volume24h ?? 0))
-    .slice(0, limit);
+  // Achtung: liquidityUsd gte schließt NULL aus — bei minLiquidity 0
+  // deshalb gar nicht auf Liquidität filtern.
+  const where =
+    f.minLiquidityUsd > 0
+      ? { pairs: { some: { liquidityUsd: { gte: f.minLiquidityUsd } } } }
+      : { pairs: { some: {} } };
+  const tokens = await queryTokens(where, sort === "newest" ? 600 : 500, sort === "newest");
+  const metrics = tokens.map(toMetrics).filter((m) => matchesFilter(m, f));
+  if (sort === "newest") {
+    metrics.sort((a, b) => (a.poolAgeHours ?? Infinity) - (b.poolAgeHours ?? Infinity));
+  } else {
+    metrics.sort((a, b) => (b.volume24h ?? 0) - (a.volume24h ?? 0));
+  }
+  return metrics.slice(0, limit);
 }
 
 export function parseJsonArray(json: string | null | undefined): string[] {

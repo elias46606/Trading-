@@ -112,7 +112,13 @@ export function TokenTable({ endpoint }: { endpoint: string }) {
               >
                 {fmtPct(t.priceChange24h)}
               </td>
-              <td className="px-4 py-2.5 text-right">{fmtAge(t.poolAgeHours)}</td>
+              <td
+                className={`px-4 py-2.5 text-right ${
+                  t.poolAgeHours !== null && t.poolAgeHours < 1 ? "text-accent font-medium" : ""
+                }`}
+              >
+                {fmtAge(t.poolAgeHours)}
+              </td>
               <td className="px-4 py-2.5 text-right text-xs">
                 <span className="text-ampel-green">{t.buys24h ?? "—"}</span>
                 <span className="text-muted"> / </span>
