@@ -3,10 +3,10 @@
 // Telegram, dedupliziert pro Token+Regel innerhalb des Cooldowns.
 
 import { prisma } from "../src/lib/db";
-import { screenTokens, parseFilterFromParams } from "../src/lib/screening";
+import { screenTokens, parseFilterFromParams, toMetrics, isFomoTradeable } from "../src/lib/screening";
 import type { ScreenerFilter, TokenMetrics } from "../src/lib/types";
 import { DEFAULT_FILTER } from "../src/lib/types";
-import { sendTelegram } from "./telegram";
+import { sendTelegram, telegramConfigured } from "./telegram";
 
 // Rug-Frühwarnung (Konzept 4.4 v2 / Phase 3)
 const LIQUIDITY_DROP_PCT = 30; // Alert ab -30 % Liquidität …
@@ -17,12 +17,78 @@ const VOLUME_SPIKE_LOOKBACK_MIN = 60; // … gegenüber vor ~1 Stunde
 const VOLUME_SPIKE_MIN_INCREASE_USD = 10_000;
 const VOLUME_SPIKE_COOLDOWN_MIN = 360;
 
+// "Neuer Coin"-Push (Konzept 4.4 Kernstück):
+// Fenster, in dem ein frisch entdeckter Coin als "neu" gilt. Dedup über
+// alerts_sent (kind=NEW_COIN) sorgt dafür, dass jeder Coin nur 1× kommt —
+// das Fenster puffert nur Cron-Verzögerungen ab.
+const NEW_COIN_WINDOW_MIN = 30;
+// Obergrenze pro Zyklus, damit ein Discovery-Schwung nicht 50 Nachrichten
+// auf einmal aufs Handy feuert.
+const NEW_COIN_MAX_PER_CYCLE = 12;
+
 export async function runDispatchCycle(): Promise<void> {
+  const sentNew = await dispatchNewCoinAlerts();
   const sentRules = await dispatchRuleAlerts();
   const sentWatch = await dispatchWatchlistAlerts();
-  if (sentRules + sentWatch > 0) {
-    console.log(`[dispatcher] ${sentRules} Regel-Alerts, ${sentWatch} Watchlist-Alerts verschickt`);
+  if (sentNew + sentRules + sentWatch > 0) {
+    console.log(
+      `[dispatcher] ${sentNew} Neuer-Coin-Alerts, ${sentRules} Regel-Alerts, ${sentWatch} Watchlist-Alerts verschickt`,
+    );
   }
+}
+
+// Push für jeden frisch aufgetauchten, handelbaren Coin ohne Scam-Signal.
+// Automatisch aktiv, sobald Telegram konfiguriert ist — respektiert den
+// Scam-Filter (keine roten Ampeln), damit die Mitteilung Wert hat.
+async function dispatchNewCoinAlerts(): Promise<number> {
+  if (!telegramConfigured()) return 0; // ohne Zustellweg gäbe es nur DB-Spam
+
+  const since = new Date(Date.now() - NEW_COIN_WINDOW_MIN * 60_000);
+  const tokens = await prisma.token.findMany({
+    where: {
+      firstSeenAt: { gte: since },
+      // Noch keine Neuer-Coin-Mitteilung für diesen Token verschickt.
+      alertsSent: { none: { kind: "NEW_COIN" } },
+    },
+    include: {
+      pairs: { orderBy: { liquidityUsd: "desc" }, take: 1 },
+      safetyScore: true,
+      watchlist: true,
+    },
+    orderBy: { firstSeenAt: "desc" },
+    take: 60,
+  });
+
+  let sent = 0;
+  for (const token of tokens) {
+    if (sent >= NEW_COIN_MAX_PER_CYCLE) break;
+    const m = toMetrics(token);
+    // Scam-Schutz: keine roten Ampeln, nur in Fomo handelbare Coins.
+    if (m.ampel === "RED") continue;
+    if (!isFomoTradeable(m)) continue;
+
+    const message = formatNewCoinAlert(m);
+    const delivered = await sendTelegram(message);
+    await prisma.alertSent.create({
+      data: { tokenId: token.id, kind: "NEW_COIN", message, deliveredTelegram: delivered },
+    });
+    sent++;
+  }
+  return sent;
+}
+
+function formatNewCoinAlert(m: TokenMetrics): string {
+  const ampelIcon = m.ampel === "GREEN" ? "🟢" : m.ampel === "YELLOW" ? "🟡" : "⚪";
+  const lines = [
+    `🚀 <b>Neuer Coin: ${escapeHtml(m.symbol)}</b>${m.name ? ` — ${escapeHtml(m.name)}` : ""}`,
+    `${ampelIcon} Safety: ${m.safetyScore ?? "—"}/100 · ` +
+      `Alter: ${m.poolAgeHours !== null ? m.poolAgeHours < 1 ? Math.round(m.poolAgeHours * 60) + " Min." : m.poolAgeHours.toFixed(1) + "h" : "—"} · ` +
+      `Liq: $${fmt(m.liquidityUsd)}`,
+    `<code>${m.address}</code> (in Fomo einfügen)`,
+  ];
+  if (m.dexUrl) lines.push(m.dexUrl);
+  lines.push("⚠️ Sehr früh = sehr riskant. Kein Prognose-Tool, keine Anlageberatung.");
+  return lines.join("\n");
 }
 
 // „Neuer Token erfüllt alle Screening-Filter UND Safety-Ampel = grün → Alert."
