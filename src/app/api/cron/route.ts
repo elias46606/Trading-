@@ -31,11 +31,19 @@ export async function GET(req: NextRequest) {
   const started = Date.now();
   const result: Record<string, unknown> = {};
 
-  const latest = await prisma.pair.findFirst({
-    orderBy: { updatedAt: "desc" },
-    select: { updatedAt: true },
-  });
-  const fresh = latest && Date.now() - latest.updatedAt.getTime() < MIN_INGEST_GAP_MS;
+  // Frische-Check eigen abgesichert: ein kurzer Neon-Verbindungsaussetzer
+  // (kostenloser Tarif schläft nach Leerlauf) darf keinen 500 werfen —
+  // dann eben Ingest laufen lassen statt abzubrechen.
+  let fresh = false;
+  try {
+    const latest = await prisma.pair.findFirst({
+      orderBy: { updatedAt: "desc" },
+      select: { updatedAt: true },
+    });
+    fresh = Boolean(latest && Date.now() - latest.updatedAt.getTime() < MIN_INGEST_GAP_MS);
+  } catch (err) {
+    console.error("[cron] Frische-Check fehlgeschlagen:", err);
+  }
 
   if (fresh) {
     result.ingest = "übersprungen (Daten jünger als 30s)";
@@ -58,5 +66,8 @@ export async function GET(req: NextRequest) {
   }
 
   result.durationMs = Date.now() - started;
+  // Immer HTTP 200 — auch wenn ein Teilzyklus scholt. Der Cron-Dienst
+  // soll nicht bei jedem transienten DB-Hänger einen Fehlschlag melden;
+  // der nächste Aufruf (in 1 Min.) holt es ohnehin nach.
   return NextResponse.json(result);
 }

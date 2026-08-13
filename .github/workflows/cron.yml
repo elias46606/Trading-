@@ -1,17 +1,19 @@
-# Kostenlose Zeitschaltuhr für das Dashboard (statt cron-job.org):
-# ruft alle ~5 Minuten /api/cron auf — jeder Aufruf holt frische
-# Token-Daten und verschickt fällige Alerts.
+# Reserve-Zeitschaltuhr für das Dashboard.
 #
-# Hinweis: Der key hier ist bewusst unkritisch — er erlaubt nur, den
-# ohnehin rate-limitierten Daten-Zyklus anzustoßen (30s-Schutz in der
-# Route). Er ist KEIN Zugang zu Datenbank oder Accounts.
-# GitHub führt Schedule-Workflows manchmal einige Minuten verzögert aus.
+# Der schnelle Minutentakt läuft über cron-job.org. Dieser Workflow ist
+# nur die Rückfall-Ebene, falls cron-job.org mal aussetzt — er tickt
+# gemächlicher (alle 15 Min.) und ist bewusst "best effort": ein kurzer
+# 500 der (kostenlosen) Neon-DB soll den Lauf NICHT rot markieren, sonst
+# gibt es unnötige Fehlermeldungen. Der nächste Tick holt es nach.
+#
+# Der key ist unkritisch — er stößt nur den rate-limitierten Daten-Zyklus
+# an, kein Zugang zu Datenbank oder Accounts.
 
-name: Worker-Takt (Ingest + Alerts)
+name: Worker-Takt (Reserve)
 
 on:
   schedule:
-    - cron: "*/5 * * * *"
+    - cron: "*/15 * * * *"
   workflow_dispatch: {}
 
 jobs:
@@ -19,7 +21,19 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
-      - name: /api/cron aufrufen
+      - name: /api/cron aufrufen (best effort, mit Wiederholung)
         run: |
-          curl -sS --fail --max-time 55 \
-            "https://trading-peach-theta.vercel.app/api/cron?key=mc-2913206236036e90"
+          URL="https://trading-peach-theta.vercel.app/api/cron?key=mc-2913206236036e90"
+          for attempt in 1 2 3; do
+            code=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 55 "$URL" || echo "000")
+            echo "Versuch $attempt: HTTP $code"
+            if [ "$code" = "200" ]; then
+              echo "Zyklus ok."
+              exit 0
+            fi
+            sleep 10
+          done
+          # Auch nach 3 Versuchen kein 200: nicht als Fehler werten —
+          # cron-job.org ist der Haupttakt, der nächste Reserve-Tick folgt.
+          echo "Kein 200 nach 3 Versuchen — Reserve-Tick übersprungen (kein Fehler)."
+          exit 0
