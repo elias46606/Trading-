@@ -1,19 +1,16 @@
-# Reserve-Zeitschaltuhr für das Dashboard.
+# Reserve-Zeitschaltuhr — ZEITPLAN PAUSIERT.
 #
-# Der schnelle Minutentakt läuft über cron-job.org. Dieser Workflow ist
-# nur die Rückfall-Ebene, falls cron-job.org mal aussetzt — er tickt
-# gemächlicher (alle 15 Min.) und ist bewusst "best effort": ein kurzer
-# 500 der (kostenlosen) Neon-DB soll den Lauf NICHT rot markieren, sonst
-# gibt es unnötige Fehlermeldungen. Der nächste Tick holt es nach.
+# Der automatische Schedule ist bewusst deaktiviert, damit keine
+# Fehler-Mails mehr entstehen (die Datenbank muss erst wieder laufen).
+# Der schnelle Minutentakt läuft ohnehin über cron-job.org.
 #
-# Der key ist unkritisch — er stößt nur den rate-limitierten Daten-Zyklus
-# an, kein Zugang zu Datenbank oder Accounts.
+# Wieder aktivieren: den "schedule:"-Block unten einkommentieren.
 
 name: Worker-Takt (Reserve)
 
 on:
-  schedule:
-    - cron: "*/15 * * * *"
+  # schedule:
+  #   - cron: "*/15 * * * *"
   workflow_dispatch: {}
 
 jobs:
@@ -33,7 +30,5 @@ jobs:
             fi
             sleep 10
           done
-          # Auch nach 3 Versuchen kein 200: nicht als Fehler werten —
-          # cron-job.org ist der Haupttakt, der nächste Reserve-Tick folgt.
           echo "Kein 200 nach 3 Versuchen — Reserve-Tick übersprungen (kein Fehler)."
           exit 0
